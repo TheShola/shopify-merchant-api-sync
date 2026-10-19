@@ -183,7 +183,7 @@ These notes will grow as I test against the protocol.
 ## Roadmap
 
 - [x] Project scope, architecture and field mapping
-- [ ] Webhook receiver with HMAC verification and de-duplication
+- [x] Webhook receiver with HMAC verification and de-duplication
 - [ ] Product insert, update and delete via the Merchant API
 - [ ] Local inventory updates
 - [ ] Retry, backoff and dead-letter handling
