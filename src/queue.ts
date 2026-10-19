@@ -1,4 +1,5 @@
 import { appendFile } from 'node:fs/promises';
+import { FatalApiError } from './retry';
 import type { Job } from './types';
 
 /**
@@ -30,6 +31,15 @@ export class JobQueue {
   private readonly seen = new Map<string, true>();
   private handler: JobHandler | null = null;
   private draining = false;
+  /**
+   * Set when a handler throws FatalApiError (a 401/403 from Google — see
+   * retry.ts). Every other queued job would hit the same broken credential,
+   * so draining stops rather than burning through the backlog one failure
+   * at a time. Jobs already in `pending` are left in place; `resume()`
+   * (called once the credential is fixed, e.g. after a redeploy with a
+   * rotated key) picks the drain back up where it left off.
+   */
+  private halted = false;
 
   /** Must be called once, before any job can be processed. */
   onJob(handler: JobHandler): void {
@@ -49,12 +59,24 @@ export class JobQueue {
 
     this.markSeen(job.webhookId);
     this.pending.push(job);
-    void this.drain(); // fire-and-forget: don't make the HTTP response wait on processing
+    // Still accept and queue the job even while halted — nothing is lost,
+    // it just waits for resume(). Only kick off draining if we're not.
+    if (!this.halted) void this.drain(); // fire-and-forget: don't make the HTTP response wait on processing
     return 'accepted';
   }
 
   get size(): number {
     return this.pending.length;
+  }
+
+  get isHalted(): boolean {
+    return this.halted;
+  }
+
+  /** Clears the halted state and resumes draining. Call after fixing the credential that caused the 401/403. */
+  resume(): void {
+    this.halted = false;
+    void this.drain();
   }
 
   private markSeen(webhookId: string): void {
@@ -75,18 +97,27 @@ export class JobQueue {
    * still has to finish or exhaust its retries before the next job starts).
    */
   private async drain(): Promise<void> {
-    if (this.draining) return;
+    if (this.draining || this.halted) return;
     this.draining = true;
 
     try {
       let job: Job | undefined;
-      while ((job = this.pending.shift())) {
+      while (!this.halted && (job = this.pending.shift())) {
         if (!this.handler) {
           throw new Error('JobQueue.onJob() was never called — no handler registered');
         }
         try {
           await this.handler(job);
         } catch (err) {
+          if (err instanceof FatalApiError) {
+            await this.deadLetter(job, err);
+            // eslint-disable-next-line no-console
+            console.error(
+              `[ALERT] halting queue: ${err.message} (last job: ${job.topic} ${job.webhookId})`,
+            );
+            this.halted = true;
+            break;
+          }
           await this.deadLetter(job, err);
         }
       }

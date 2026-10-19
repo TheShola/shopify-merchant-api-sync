@@ -1,0 +1,33 @@
+{
+  "id": 8821349302,
+  "title": "Linen Shirt",
+  "body_html": "<p>A breathable <strong>linen</strong> shirt for warm days. Now in a relaxed fit.</p>",
+  "vendor": "Acme Apparel Co.",
+  "handle": "linen-shirt",
+  "status": "active",
+  "variants": [
+    {
+      "id": 44501923871,
+      "product_id": 8821349302,
+      "title": "Blue / M",
+      "sku": "LINEN-SHIRT-BLUE-M",
+      "barcode": "0012345678905",
+      "price": "54.99",
+      "compare_at_price": "59.99",
+      "inventory_quantity": 9,
+      "inventory_policy": "deny",
+      "inventory_item_id": 55601837221,
+      "option1": "Blue",
+      "option2": "M",
+      "option3": null,
+      "image_id": 99102837441
+    }
+  ],
+  "images": [
+    {
+      "id": 99102837441,
+      "src": "https://cdn.shopify.com/s/files/1/0001/0002/products/linen-shirt-blue.jpg",
+      "variant_ids": [44501923871]
+    }
+  ]
+}

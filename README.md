@@ -186,7 +186,7 @@ These notes will grow as I test against the protocol.
 - [x] Webhook receiver with HMAC verification and de-duplication
 - [ ] Product insert, update and delete via the Merchant API
 - [ ] Local inventory updates
-- [ ] Retry, backoff and dead-letter handling
+- [x] Retry, backoff and dead-letter handling
 - [ ] Business Profile location sync
 - [ ] Webhook simulator and sample payloads
 - [ ] Unit tests and CI

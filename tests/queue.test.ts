@@ -1,6 +1,7 @@
 import { readFile, rm } from 'node:fs/promises';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { JobQueue } from '../src/queue';
+import { FatalApiError, GoogleApiError } from '../src/retry';
 import type { Job } from '../src/types';
 
 const DEAD_LETTER_PATH = 'dead-letter.log';
@@ -77,5 +78,54 @@ describe('JobQueue', () => {
     const entry = JSON.parse(logContents.trim().split('\n')[0]!) as { webhookId: string; error: string };
     expect(entry.webhookId).toBe('bad');
     expect(entry.error).toContain('merchant API said no');
+  });
+
+  it('halts on FatalApiError, leaving later jobs unprocessed, and resumes on resume()', async () => {
+    const queue = new JobQueue();
+    const processed: string[] = [];
+    queue.onJob(async (job) => {
+      if (job.webhookId === 'unauthorized') {
+        throw new FatalApiError('401 from Merchant API', new GoogleApiError('nope', 401));
+      }
+      processed.push(job.webhookId);
+      await Promise.resolve();
+    });
+
+    queue.enqueue(makeJob({ webhookId: 'before' }));
+    queue.enqueue(makeJob({ webhookId: 'unauthorized' }));
+    queue.enqueue(makeJob({ webhookId: 'after' }));
+
+    await vi.waitFor(() => expect(queue.isHalted).toBe(true));
+    expect(processed).toEqual(['before']);
+    // 'after' is still sitting in the queue, not lost, not processed yet.
+    expect(queue.size).toBe(1);
+
+    const logContents = await readFile(DEAD_LETTER_PATH, 'utf8');
+    expect(logContents).toContain('unauthorized');
+
+    queue.resume();
+    await vi.waitFor(() => expect(processed).toEqual(['before', 'after']));
+    expect(queue.isHalted).toBe(false);
+    expect(queue.size).toBe(0);
+  });
+
+  it('still accepts (and dedupes) enqueues while halted, without processing them', async () => {
+    const queue = new JobQueue();
+    const processed: string[] = [];
+    queue.onJob(async (job) => {
+      if (job.webhookId === 'unauthorized') {
+        throw new FatalApiError('401', new GoogleApiError('nope', 401));
+      }
+      processed.push(job.webhookId);
+      await Promise.resolve();
+    });
+
+    queue.enqueue(makeJob({ webhookId: 'unauthorized' }));
+    await vi.waitFor(() => expect(queue.isHalted).toBe(true));
+
+    const result = queue.enqueue(makeJob({ webhookId: 'queued-while-halted' }));
+    expect(result).toBe('accepted');
+    expect(processed).toEqual([]);
+    expect(queue.size).toBe(1);
   });
 });

@@ -92,6 +92,29 @@ export interface ShopifyLocationPayload {
   active: boolean;
 }
 
+/** Merchant API "local inventory" — per-store, in-person availability, as opposed to online ProductInput availability. */
+export interface GoogleLocalInventoryInput {
+  offerId: string;
+  storeCode: string;
+  availability: 'in_stock' | 'out_of_stock';
+  /** Merchant API models quantity as an int64, which the client libraries represent as a string. */
+  quantity: string;
+}
+
+/** Minimal shape of a Business Profile location PATCH body. */
+export interface GoogleBusinessLocationPatch {
+  /** Resource name, e.g. "locations/12345678901234567890". */
+  name: string;
+  address: {
+    addressLines: string[];
+    locality?: string;
+    administrativeArea?: string;
+    regionCode?: string;
+    postalCode?: string;
+  };
+  phoneNumbers?: { primaryPhone: string };
+}
+
 /** Minimal shape of the field this service sets on a Merchant API ProductInput. */
 export interface GoogleProductInput {
   offerId: string;
